@@ -11,22 +11,29 @@ local lockedTarget = nil
 
 -- New ESP Variables
 local Players = game:GetService("Players")
+local highlights = {}
 
--- Function to create ESP for a player
+-- Function to create or update ESP for a player
 local function createESP(targetPlayer)
     local character = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    local highlight = Instance.new("Highlight")
-    highlight.Parent = character
-    highlight.FillColor = Color3.new(1, 0, 0) -- Red color for fill
-    highlight.FillTransparency = 0.5 -- Adjust transparency as needed
-    highlight.OutlineColor = Color3.new(1, 1, 1) -- White color for outline
+    
+    -- Check if highlight already exists
+    if not highlights[targetPlayer.UserId] then
+        local highlight = Instance.new("Highlight")
+        highlight.Parent = character
+        highlight.FillColor = Color3.new(1, 0, 0) -- Red color for fill
+        highlight.FillTransparency = 0.5 -- Adjust transparency as needed
+        highlight.OutlineColor = Color3.new(1, 1, 1) -- White color for outline
+        highlights[targetPlayer.UserId] = highlight
 
-    -- Clean up when the player leaves
-    targetPlayer.AncestryChanged:Connect(function(_, parent)
-        if not parent then
-            highlight:Destroy()
-        end
-    end)
+        -- Clean up when the player leaves
+        targetPlayer.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                highlight:Destroy()
+                highlights[targetPlayer.UserId] = nil
+            end
+        end)
+    end
 end
 
 -- Function to refresh ESP for all players
@@ -54,7 +61,7 @@ local function findClosestTarget()
     local closestDistance = math.huge
     local playerTeam = player.Team
 
-    for _, targetPlayer in pairs(game.Players:GetPlayers()) do
+    for _, targetPlayer in pairs(Players:GetPlayers()) do
         if targetPlayer ~= player and targetPlayer.Team ~= playerTeam and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetPosition = targetPlayer.Character.HumanoidRootPart.Position
             local distance = (player.Character.HumanoidRootPart.Position - targetPosition).Magnitude
@@ -103,14 +110,10 @@ Tab:AddToggle({
             refreshESP()
         else
             -- Remove ESP by destroying all highlights
-            for _, targetPlayer in ipairs(Players:GetPlayers()) do
-                if targetPlayer.Character then
-                    local highlight = targetPlayer.Character:FindFirstChildOfClass("Highlight")
-                    if highlight then
-                        highlight:Destroy()
-                    end
-                end
+            for _, highlight in pairs(highlights) do
+                highlight:Destroy()
             end
+            highlights = {}
         end
     end    
 })
@@ -122,6 +125,7 @@ runService.Heartbeat:Connect(function()
         lockedTarget = findClosestTarget() -- Update the locked target every frame
         aimAtTarget(lockedTarget)
     end
+    refreshESP() -- Refresh ESP every second
 end)
 
 OrionLib:Init()
